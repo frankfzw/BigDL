@@ -403,10 +403,10 @@ class TensorflowLoaderSpec extends TensorflowSpecHelper{
       case(tf, bigdl) =>
         if (tf.dim() == 4) {
           val trans = tf.transpose(1, 4).transpose(2, 3).transpose(3, 4).contiguous()
-          trans.almostEqual(bigdl, 1e-3) should be(true)
+          trans.almostEqual(bigdl, 1e-2) should be(true)
         }
         else {
-          tf.almostEqual(bigdl, 1e-3) should be(true)
+          tf.almostEqual(bigdl, 1e-2) should be(true)
         }
     }
   }
@@ -433,45 +433,25 @@ class TensorflowLoaderSpec extends TensorflowSpecHelper{
     val endPoints = Seq("InceptionResnetV2/Logits/Logits/BiasAdd:0",
       "InceptionResnetV2/AuxLogits/Logits/BiasAdd:0")
 
-    // testModelForward("inception_resnet_v2", endPoints, true).foreach {
-    //   case(tf, bigdl) =>
-    //     tf.almostEqual(bigdl, 1e-7) should be(true)
-    // }
-
-    tfCheck()
-    // Generate command and prepare the temp folder
-    val s = JFile.separator
-    val modelsFolder = processPath(getClass().getClassLoader().getResource("tf").getPath()) +
-      s + "models"
-    val modelScript = modelsFolder + s + "inception_resnet_v2.py"
-    val tmpLocation = java.io.File.createTempFile("tensorflowLoaderTest" + UUID.randomUUID(),
-      "incecption_resnet_v2")
-    tmpLocation.delete()
-    tmpLocation.mkdir()
-
-    require(runPython(s"$modelScript $tmpLocation ${endPoints.mkString(",")} False"),
-      "error when run the model script")
-
-    // Load the model and input/output tensors
-    val modelFile = tmpLocation + s + "model.pb"
-    val tfNodes = TensorflowLoader.parse(modelFile)
-
-    // filter node for gradient computing
-    val tfGraph = TensorflowLoader.buildTFGraph(tfNodes, endPoints.map(_.split(":")(0)))
-    val context = new mutable.HashMap[NodeDef, (Tensor[Float], Tensor[Float])]
-    val model = TensorflowLoader.buildBigDLModel(tfGraph, Seq("input"),
-      endPoints.map(_.split(":")(0)), ByteOrder.LITTLE_ENDIAN, Some(context))
-    val input = Tensor(2, 3, 299, 299).randn()
-    val bigdlOutputs = {
-      val t = model.forward(input).toTable
-      (1 to endPoints.length).map(t[Tensor[Float]](_))
+    testModelForward("inception_resnet_v2", endPoints, true).foreach {
+      case(tf, bigdl) =>
+        tf.almostEqual(bigdl, 1e-7) should be(true)
     }
-    val gradInput = T()
-    bigdlOutputs.foreach{
-      case output =>
-        gradInput.insert[Tensor[Float]](Tensor(output.size()).rand())
+    testModelBackward("inception_resnet_v2", endPoints, true,
+      Seq.empty).foreach {
+      case(tf, bigdl) =>
+        if (tf.dim() == 4) {
+          val trans = tf.transpose(1, 4).transpose(2, 3).transpose(3, 4).contiguous()
+          trans.almostEqual(bigdl, 1e-2) should be(true)
+        }
+        else if (tf.dim() == 2) {
+          val trans = tf.transpose(1, 2).contiguous()
+          trans.almostEqual(bigdl, 1e-2) should be(true)
+        } else {
+          tf.almostEqual(bigdl, 1e-2) should be(true)
+        }
     }
-    model.backward(input, gradInput)
+
   }
 
 
@@ -586,7 +566,7 @@ class TensorflowLoaderSpec extends TensorflowSpecHelper{
     }
 
     // get gradient input of tensorflow
-    val gradInputs = (0 until endPoints.length).map{
+    val tfGradInputs = (0 until endPoints.length).map{
       i =>
         val t = tfNodes.asScala.filter(_.getName == s"grad_input$i")(0)
           .getAttrMap.get("value").getTensor
@@ -597,12 +577,23 @@ class TensorflowLoaderSpec extends TensorflowSpecHelper{
         tensor.contiguous()
     }
 
-    // check shape equality here
-    for (i <- 0 until endPoints.length) {
-      bigdlOutputs(i).size() should be(gradInputs(i).size())
+    val gradInputs = if (endPoints.length == 1) {
+      tfGradInputs(0)
+    } else {
+      val gradInputsTable = T()
+      tfGradInputs.foreach {
+        case output =>
+          gradInputsTable.insert[Tensor[Float]](output)
+      }
+      gradInputsTable
     }
 
-    // find all gradients tensor in tensorflow graph
+    // check shape equality here
+    for (i <- 0 until endPoints.length) {
+      bigdlOutputs(i).size() should be(tfGradInputs(i).size())
+    }
+
+    // find all gradients tensor of variables in tensorflow graph
     val tfGradTensorsMap = context.keySet.map{
       node =>
         val t = tfNodes.asScala.filter(_.getName.contains(node.getName + "_grad"))(0)
@@ -613,17 +604,17 @@ class TensorflowLoaderSpec extends TensorflowSpecHelper{
 
     val comparePair = new mutable.ArrayBuffer[(Tensor[Float], Tensor[Float])]()
 
-    // do backward for each output and its corresponding gradient input
-    for (i <- 0 until gradInputs.length) {
-      // println(s"grad $i")
-      model.backward(transposeInput, gradInputs(i))
-      val pairs = context.keySet.map{
-        x =>
-          val name = s"${x.getName}_grad$i"
-          (tfGradTensorsMap.get(name).getOrElse(null), context(x)._2)
-      }.toSeq.filter(_._2 != null)
-      comparePair ++= pairs
-    }
+    // do backward
+    model.backward(transposeInput, gradInputs)
+
+    // println(s"grad $i")
+    val pairs = context.keySet.map{
+      x =>
+        val name = s"${x.getName}_grad"
+        (tfGradTensorsMap.get(name).getOrElse(null), context(x)._2)
+    }.toSeq.filter(_._1 != null)
+    comparePair ++= pairs
+
     println(s"Compare ${comparePair.length} pairs of gradient vars in this graph")
     tmpLocation.deleteOnExit()
     comparePair
