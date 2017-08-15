@@ -72,7 +72,10 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
       } else {
         seqToTable(node.prevNodes.map(_.element.output))
       }
+      val before = System.nanoTime()
       node.element.updateOutput(inputsBP(i))
+      val layerForward = System.nanoTime() - before
+      println(s"Layer ${node.element.getName()} forward time ${layerForward}")
       i += 1
     }
 
