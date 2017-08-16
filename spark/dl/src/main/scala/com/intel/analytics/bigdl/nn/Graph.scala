@@ -75,7 +75,7 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
       val before = System.nanoTime()
       node.element.updateOutput(inputsBP(i))
       val layerForward = System.nanoTime() - before
-      println(s"Layer ${node.element.getName()} forward time ${layerForward}")
+      println(s"Layer forward ${node.element.getName()} time ${layerForward}")
       i += 1
     }
 
@@ -109,7 +109,10 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
       })
 
       gradOutputBP(i) = curGradOutput
+      val before = System.nanoTime()
       curNode.element.backward(inputsBP(i), curGradOutput)
+      val layerBackward = System.nanoTime() - before
+      println(s"Layer backward ${curNode.element.getName()} time ${layerBackward}")
       i -= 1
     }
 
