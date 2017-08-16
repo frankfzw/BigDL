@@ -34,7 +34,10 @@ class Sequential[T: ClassTag]
     var i = 0
     var result = input.asInstanceOf[Activity]
     while (i < modules.length) {
+      val before = System.nanoTime()
       result = modules(i).forward(result)
+      val layerForward = System.nanoTime() - before
+      println(s"Layer ${modules(i).getName()} forward time ${layerForward}")
       i += 1
     }
 
