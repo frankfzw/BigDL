@@ -81,10 +81,16 @@ class Sequential[T: ClassTag]
     var error = nextError.asInstanceOf[Activity]
     while (i > 0) {
       val input = modules(i - 1).output
+      val before = System.nanoTime()
       error = modules(i).backward(input, error)
+      val layerBackward = System.nanoTime() - before
+      println(s"Layer backward ${modules(i).getName()} time ${layerBackward}")
       i -= 1
     }
+    val before = System.nanoTime()
     error = modules(0).backward(input, error)
+    val layerBackward = System.nanoTime() - before
+    println(s"Layer backward ${modules(0).getName()} time ${layerBackward}")
 
     this.gradInput = error
     gradInput
