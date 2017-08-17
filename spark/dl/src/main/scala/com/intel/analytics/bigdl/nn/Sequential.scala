@@ -37,7 +37,7 @@ class Sequential[T: ClassTag]
       val before = System.nanoTime()
       result = modules(i).forward(result)
       val layerForward = System.nanoTime() - before
-      println(s"Layer ${modules(i).getName()} forward time ${layerForward}")
+      println(s"Layer forward ${modules(i).getName()} time ${layerForward}")
       i += 1
     }
 
