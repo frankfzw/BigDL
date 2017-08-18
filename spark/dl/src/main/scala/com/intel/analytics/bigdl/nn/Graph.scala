@@ -198,7 +198,7 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
   modules.appendAll(executions.map(_.element.asInstanceOf[AbstractModule[Activity, Activity, T]]))
 
   val forwardArr = new Array[(String, Long)](executions.length)
-  val backwardArr= new Array[(String, Long)](executions.length)
+  val backwardArr = new Array[(String, Long)](executions.length)
 
   // Check all inputs of the graph should be passed in
   checkRoots
