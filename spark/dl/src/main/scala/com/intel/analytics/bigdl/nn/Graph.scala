@@ -75,7 +75,7 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
       val before = System.nanoTime()
       node.element.updateOutput(inputsBP(i))
       val layerForward = System.nanoTime() - before
-      println(s"Layer forward ${node.element.getName()} time ${layerForward}")
+      forwardArr(i) = (node.element.getName(), layerForward)
       i += 1
     }
 
@@ -112,7 +112,7 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
       val before = System.nanoTime()
       curNode.element.backward(inputsBP(i), curGradOutput)
       val layerBackward = System.nanoTime() - before
-      println(s"Layer backward ${curNode.element.getName()} time ${layerBackward}")
+      backwardArr(i) = (curNode.element.getName(), layerBackward)
       i -= 1
     }
 
@@ -196,6 +196,9 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
    */
   val executions = backGraph.topologySort.filter(!_.element.isInstanceOf[Dummy[T]]).reverse
   modules.appendAll(executions.map(_.element.asInstanceOf[AbstractModule[Activity, Activity, T]]))
+
+  val forwardArr = new Array[(String, Long)](executions.length)
+  val backwardArr= new Array[(String, Long)](executions.length)
 
   // Check all inputs of the graph should be passed in
   checkRoots

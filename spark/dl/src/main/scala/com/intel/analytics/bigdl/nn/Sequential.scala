@@ -30,14 +30,17 @@ import scala.reflect.ClassTag
 class Sequential[T: ClassTag]
 (implicit ev: TensorNumeric[T]) extends Container[Activity, Activity, T] {
 
+  var forwardArr: Array[(String, Long)] = new Array[(String, Long)](1)
+  var backwardArr: Array[(String, Long)] = new Array[(String, Long)](1)
   override def updateOutput(input: Activity): Activity = {
+    forwardArr = new Array[(String, Long)](modules.length)
     var i = 0
     var result = input.asInstanceOf[Activity]
     while (i < modules.length) {
       val before = System.nanoTime()
       result = modules(i).forward(result)
       val layerForward = System.nanoTime() - before
-      println(s"Layer forward ${modules(i).getName()} time ${layerForward}")
+      forwardArr(i) = (modules(i).getName(), layerForward)
       i += 1
     }
 
@@ -77,6 +80,7 @@ class Sequential[T: ClassTag]
   }
 
   override def backward(input: Activity, nextError: Activity): Activity = {
+    backwardArr = new Array[(String, Long)](modules.length)
     var i = modules.length - 1
     var error = nextError.asInstanceOf[Activity]
     while (i > 0) {
@@ -84,13 +88,13 @@ class Sequential[T: ClassTag]
       val before = System.nanoTime()
       error = modules(i).backward(input, error)
       val layerBackward = System.nanoTime() - before
-      println(s"Layer backward ${modules(i).getName()} time ${layerBackward}")
+      backwardArr(i) = (modules(i).getName(), layerBackward)
       i -= 1
     }
     val before = System.nanoTime()
     error = modules(0).backward(input, error)
     val layerBackward = System.nanoTime() - before
-    println(s"Layer backward ${modules(0).getName()} time ${layerBackward}")
+    backwardArr(0) = (modules(0).getName(), layerBackward)
 
     this.gradInput = error
     gradInput
