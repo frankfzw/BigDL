@@ -18,7 +18,7 @@ package com.intel.analytics.bigdl.optim
 
 import com.intel.analytics.bigdl.dataset.{LocalDataSet, MiniBatch}
 import com.intel.analytics.bigdl._
-import com.intel.analytics.bigdl.nn.Utils
+import com.intel.analytics.bigdl.nn.{Graph, Sequential, Utils}
 import com.intel.analytics.bigdl.nn.abstractnn.Activity
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
@@ -107,6 +107,7 @@ class LocalOptimizer[T: ClassTag] private[optim](
       val lossSum = Engine.default.invokeAndWait(
         (0 until parallelism).map(i =>
           () => {
+            val ts = System.nanoTime()
             val localModel = workingModels(i)
             localModel.zeroGradParameters()
             localModel.training()
@@ -117,6 +118,8 @@ class LocalOptimizer[T: ClassTag] private[optim](
             val _loss = ev.toType[Double](localCriterion.forward(output, target))
             val errors = localCriterion.backward(output, target)
             localModel.backward(input, errors)
+            val d = (System.nanoTime() - ts) / 1e9
+            logger.info(s"Iteration ${state[Int]("neval")}: thread ${i} run time ${d} s")
             _loss
           })
       ).sum
@@ -140,6 +143,10 @@ class LocalOptimizer[T: ClassTag] private[optim](
             }
           })
       )
+      val e = System.nanoTime()
+      val d = (e - start) / 1e9
+      logger.info(s"Iteration ${state[Int]("neval")}: " +
+        s"Throughput is ${batch.size().toDouble / d} record / second, run time ${d} s")
       val loss = lossSum / parallelism
       grad.div(ev.fromType(parallelism))
 
@@ -151,13 +158,42 @@ class LocalOptimizer[T: ClassTag] private[optim](
       count += batch.size()
       val head =
         header(state[Int]("epoch"), count, dataset.size(), state[Int]("neval"), wallClockTime)
-      logger.info(s"$head " +
-        s"loss is $loss, iteration time is ${(end - start) / 1e9}s " +
-        s"data fetch time is ${(dataFetchTime - start) / 1e9}s, " +
-        s"train time ${(end - dataFetchTime) / 1e9}s. " +
-        s"Throughput is ${batch.size().toDouble / (end - start) * 1e9} record / second. " +
-        optimMethod.getHyperParameter()
-        )
+      // logger.info(s"$head " +
+      //   s"loss is $loss, iteration time is ${(end - start) / 1e9} s " +
+      //   s"data fetch time is ${(dataFetchTime - start) / 1e9} s, " +
+      //   s"train time ${(end - dataFetchTime) / 1e9} s. " +
+      //   s"Throughput is ${batch.size().toDouble / (end - start) * 1e9} record / second. " +
+      //   optimMethod.getHyperParameter()
+      //   )
+      if (model.isInstanceOf[Graph[T]]) {
+        var j = 0
+        for (m <- workingModels) {
+          val g = m.asInstanceOf[Graph[T]]
+          for ((name, value) <- g.forwardArr) {
+            logger.info(s"Iteration ${state[Int]("neval")}: " +
+              s"model ${j} Layer forward ${name} ${value}")
+          }
+          for ((name, value) <- g.backwardArr) {
+            logger.info(s"Iteration ${state[Int]("neval")}: " +
+              s"model ${j} Layer backward ${name} ${value}")
+          }
+          j += 1
+        }
+      } else if (model.isInstanceOf[Sequential[T]]) {
+        var j = 0
+        for (m <- workingModels) {
+          val g = m.asInstanceOf[Sequential[T]]
+          for ((name, value) <- g.forwardArr) {
+            logger.info(s"Iteration ${state[Int]("neval")}: " +
+              s"model ${j} Layer forward ${name} ${value}")
+          }
+          for ((name, value) <- g.backwardArr) {
+            logger.info(s"Iteration ${state[Int]("neval")}: " +
+              s"model ${j} Layer backward ${name} ${value}")
+          }
+          j += 1
+        }
+      }
       state("neval") = state[Int]("neval") + 1
 
       if (count >= dataset.size()) {
