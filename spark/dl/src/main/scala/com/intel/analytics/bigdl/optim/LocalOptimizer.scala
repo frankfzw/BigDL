@@ -110,6 +110,7 @@ class LocalOptimizer[T: ClassTag] private[optim](
             val ts = System.nanoTime()
             val localModel = workingModels(i)
             localModel.zeroGradParameters()
+            val zero = System.nanoTime()
             localModel.training()
             val localCriterion = workingCriterion(i)
             val input = miniBatchBuffer(i).getInput()
@@ -119,7 +120,9 @@ class LocalOptimizer[T: ClassTag] private[optim](
             val errors = localCriterion.backward(output, target)
             localModel.backward(input, errors)
             val d = (System.nanoTime() - ts) / 1e9
-            logger.info(s"Iteration ${state[Int]("neval")}: thread ${i} run time ${d} s")
+            logger.info(s"Iteration ${state[Int]("neval")}: thread ${i} " +
+              s"zero time is ${(zero - ts) / 1e9}s, " +
+              s"run time is ${d} s")
             _loss
           })
       ).sum
