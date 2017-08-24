@@ -125,6 +125,7 @@ class LocalOptimizer[T: ClassTag] private[optim](
       ).sum
 
       // copy multi-model gradient to the buffer
+      val copyStart = System.nanoTime()
       Engine.default.invokeAndWait(
         (0 until syncGradParallelNum).map(tid =>
           () => {
@@ -143,12 +144,10 @@ class LocalOptimizer[T: ClassTag] private[optim](
             }
           })
       )
-      val e = System.nanoTime()
-      val d = (e - start) / 1e9
-      logger.info(s"Iteration ${state[Int]("neval")}: " +
-        s"Throughput is ${batch.size().toDouble / d} record / second, run time ${d} s")
+      val copyEnd = System.nanoTime()
       val loss = lossSum / parallelism
       grad.div(ev.fromType(parallelism))
+      val divTime = System.nanoTime()
 
       optimMethod.state.update("epoch", state.get("epoch"))
       optimMethod.state.update("neval", state.get("neval"))
@@ -158,6 +157,13 @@ class LocalOptimizer[T: ClassTag] private[optim](
       count += batch.size()
       val head =
         header(state[Int]("epoch"), count, dataset.size(), state[Int]("neval"), wallClockTime)
+      logger.info(s"Iteration ${state[Int]("neval")}: " +
+        s"Throughput is ${batch.size().toDouble / (end - start) * 1e9} record / second, " +
+        s"data fetch time is ${(dataFetchTime - start) / 1e9} s, " +
+        s"run time is ${(copyStart - dataFetchTime) / 1e9} s, " +
+        s"copy time is ${(copyEnd - copyStart) / 1e9} s, " +
+        s"div time is ${(divTime - copyEnd) / 1e9} s, " +
+        s"update tiem is ${(end - divTime) / 1e9} s")
       // logger.info(s"$head " +
       //   s"loss is $loss, iteration time is ${(end - start) / 1e9} s " +
       //   s"data fetch time is ${(dataFetchTime - start) / 1e9} s, " +
