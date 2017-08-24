@@ -121,7 +121,7 @@ class LocalOptimizer[T: ClassTag] private[optim](
             localModel.backward(input, errors)
             val d = (System.nanoTime() - ts) / 1e9
             logger.info(s"Iteration ${state[Int]("neval")}: thread ${i} " +
-              s"zero time is ${(zero - ts) / 1e9}s, " +
+              s"zero time is ${(zero - ts) / 1e9} s, " +
               s"run time is ${d} s")
             _loss
           })
@@ -166,7 +166,7 @@ class LocalOptimizer[T: ClassTag] private[optim](
         s"run time is ${(copyStart - dataFetchTime) / 1e9} s, " +
         s"copy time is ${(copyEnd - copyStart) / 1e9} s, " +
         s"div time is ${(divTime - copyEnd) / 1e9} s, " +
-        s"update tiem is ${(end - divTime) / 1e9} s")
+        s"update time is ${(end - divTime) / 1e9} s")
       // logger.info(s"$head " +
       //   s"loss is $loss, iteration time is ${(end - start) / 1e9} s " +
       //   s"data fetch time is ${(dataFetchTime - start) / 1e9} s, " +
