@@ -177,19 +177,15 @@ class LocalOptimizer[T: ClassTag] private[optim](
       def printTime(idx: Int, m: Module[T], tag: String, time: Float): Unit = {
         if (m.isInstanceOf[Graph[T]]) {
           val g = m.asInstanceOf[Graph[T]]
-          for ((mm, value) <- g.forwardArr) {
-            printTime(idx, mm, "forward", value)
-          }
-          for ((mm, value) <- g.backwardArr) {
-            printTime(idx, mm, "backwardArr", value)
+          for (i <- 0 until g.forwardArr.length) {
+            printTime(idx, g.forwardArr(i)._1, "forward", g.forwardArr(i)._2)
+            printTime(idx, g.backwardArr(i)._1, "backward", g.backwardArr(i)._2)
           }
         } else if (m.isInstanceOf[Sequential[T]]) {
           val g = m.asInstanceOf[Sequential[T]]
-          for ((mm, value) <- g.forwardArr) {
-            printTime(idx, mm, "forward", value)
-          }
-          for ((mm, value) <- g.backwardArr) {
-            printTime(idx, mm, "backwardArr", value)
+          for (i <- 0 until g.forwardArr.length) {
+            printTime(idx, g.forwardArr(i)._1, "forward", g.forwardArr(i)._2)
+            printTime(idx, g.backwardArr(i)._1, "backward", g.backwardArr(i)._2)
           }
         } else {
           logger.info(s"Iteration ${state[Int]("neval")}: " +
