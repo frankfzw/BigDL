@@ -15,6 +15,7 @@
  */
 package com.intel.analytics.bigdl.nn
 
+import com.intel.analytics.bigdl.Module
 import com.intel.analytics.bigdl.nn.Graph.ModuleNode
 import com.intel.analytics.bigdl.nn.abstractnn.{AbstractModule, Activity, TensorModule}
 import com.intel.analytics.bigdl.nn.tf.WithoutInput
@@ -75,7 +76,7 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
       val before = System.nanoTime()
       node.element.updateOutput(inputsBP(i))
       val layerForward = System.nanoTime() - before
-      forwardArr(i) = (node.element.getName(), layerForward)
+      forwardArr(i) = (node.element, layerForward)
       i += 1
     }
 
@@ -112,7 +113,7 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
       val before = System.nanoTime()
       curNode.element.backward(inputsBP(i), curGradOutput)
       val layerBackward = System.nanoTime() - before
-      backwardArr(i) = (curNode.element.getName(), layerBackward)
+      backwardArr(i) = (curNode.element, layerBackward)
       i -= 1
     }
 
@@ -197,8 +198,8 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
   val executions = backGraph.topologySort.filter(!_.element.isInstanceOf[Dummy[T]]).reverse
   modules.appendAll(executions.map(_.element.asInstanceOf[AbstractModule[Activity, Activity, T]]))
 
-  val forwardArr = new Array[(String, Long)](executions.length)
-  val backwardArr = new Array[(String, Long)](executions.length)
+  val forwardArr = new Array[(Module[T], Long)](executions.length)
+  val backwardArr = new Array[(Module[T], Long)](executions.length)
 
   // Check all inputs of the graph should be passed in
   checkRoots

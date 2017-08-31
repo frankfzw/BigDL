@@ -174,35 +174,32 @@ class LocalOptimizer[T: ClassTag] private[optim](
       //   s"Throughput is ${batch.size().toDouble / (end - start) * 1e9} record / second. " +
       //   optimMethod.getHyperParameter()
       //   )
-      if (model.isInstanceOf[Graph[T]]) {
-        var j = 0
-        for (m <- workingModels) {
+      def printTime(idx: Int, m: Module[T], tag: String, time: Float): Unit = {
+        if (m.isInstanceOf[Graph[T]]) {
           val g = m.asInstanceOf[Graph[T]]
-          for ((name, value) <- g.forwardArr) {
-            logger.info(s"Iteration ${state[Int]("neval")}: " +
-              s"model ${j} Layer forward ${name} ${value}")
+          for ((mm, value) <- g.forwardArr) {
+            printTime(idx, mm, "forward", value)
           }
-          for ((name, value) <- g.backwardArr) {
-            logger.info(s"Iteration ${state[Int]("neval")}: " +
-              s"model ${j} Layer backward ${name} ${value}")
+          for ((mm, value) <- g.backwardArr) {
+            printTime(idx, mm, "backwardArr", value)
           }
-          j += 1
-        }
-      } else if (model.isInstanceOf[Sequential[T]]) {
-        var j = 0
-        for (m <- workingModels) {
-          val g = m.asInstanceOf[Sequential[T]]
-          for ((name, value) <- g.forwardArr) {
-            logger.info(s"Iteration ${state[Int]("neval")}: " +
-              s"model ${j} Layer forward ${name} ${value}")
+        } else if (model.isInstanceOf[Sequential[T]]) {
+          val g = m.asInstanceOf[Graph[T]]
+          for ((mm, value) <- g.forwardArr) {
+            printTime(idx, mm, "forward", value)
           }
-          for ((name, value) <- g.backwardArr) {
-            logger.info(s"Iteration ${state[Int]("neval")}: " +
-              s"model ${j} Layer backward ${name} ${value}")
+          for ((mm, value) <- g.backwardArr) {
+            printTime(idx, mm, "backwardArr", value)
           }
-          j += 1
+        } else {
+          logger.info(s"Iteration ${state[Int]("neval")}: " +
+              s"model ${idx} Layer ${tag} ${m.getName()} ${time}")
         }
       }
+      for (j <- 0 until workingModels.length) {
+        printTime(j, workingModels(j), "Invalid", -1)
+      }
+
       state("neval") = state[Int]("neval") + 1
 
       if (count >= dataset.size()) {
