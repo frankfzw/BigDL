@@ -184,7 +184,7 @@ class LocalOptimizer[T: ClassTag] private[optim](
             printTime(idx, mm, "backwardArr", value)
           }
         } else if (model.isInstanceOf[Sequential[T]]) {
-          val g = m.asInstanceOf[Graph[T]]
+          val g = m.asInstanceOf[Sequential[T]]
           for ((mm, value) <- g.forwardArr) {
             printTime(idx, mm, "forward", value)
           }
