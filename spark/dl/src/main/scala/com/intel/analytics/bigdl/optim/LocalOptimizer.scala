@@ -174,26 +174,26 @@ class LocalOptimizer[T: ClassTag] private[optim](
       //   s"Throughput is ${batch.size().toDouble / (end - start) * 1e9} record / second. " +
       //   optimMethod.getHyperParameter()
       //   )
-      def printTime(idx: Int, m: Module[T], tag: String, time: Float): Unit = {
+      def printTime(idx: Int, m: Module[T], ftime: Float, btime: Float): Unit = {
         if (m.isInstanceOf[Graph[T]]) {
           val g = m.asInstanceOf[Graph[T]]
           for (i <- 0 until g.forwardArr.length) {
-            printTime(idx, g.forwardArr(i)._1, "forward", g.forwardArr(i)._2)
-            printTime(idx, g.backwardArr(i)._1, "backward", g.backwardArr(i)._2)
+            printTime(idx, g.forwardArr(i)._1, g.forwardArr(i)._2, g.backwardArr(i)._2)
           }
         } else if (m.isInstanceOf[Sequential[T]]) {
           val g = m.asInstanceOf[Sequential[T]]
           for (i <- 0 until g.forwardArr.length) {
-            printTime(idx, g.forwardArr(i)._1, "forward", g.forwardArr(i)._2)
-            printTime(idx, g.backwardArr(i)._1, "backward", g.backwardArr(i)._2)
+            printTime(idx, g.forwardArr(i)._1, g.forwardArr(i)._2, g.backwardArr(i)._2)
           }
         } else {
           logger.info(s"Iteration ${state[Int]("neval")}: " +
-              s"model ${idx} Layer ${tag} ${m.getName()} ${time}")
+              s"model ${idx} Layer forward ${m.getName()} ${ftime}")
+          logger.info(s"Iteration ${state[Int]("neval")}: " +
+              s"model ${idx} Layer backward ${m.getName()} ${btime}")
         }
       }
       for (j <- 0 until workingModels.length) {
-        printTime(j, workingModels(j), "Invalid", -1)
+        printTime(j, workingModels(j), -1, -1)
       }
 
       state("neval") = state[Int]("neval") + 1
