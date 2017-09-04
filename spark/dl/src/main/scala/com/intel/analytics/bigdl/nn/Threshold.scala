@@ -79,12 +79,9 @@ class Threshold[@specialized(Float, Double) T: ClassTag](
             results(_t) = Engine.model.invoke(() => {
               var i = taskArray(_t)._1
               while (i < taskArray(_t)._2) {
-                inputData(inputOffset + i) =
-                  if (inputData(inputOffset + i) <= threshold) {
-                    value
-                  } else {
-                    inputData(inputOffset + i)
-                  }
+                if (inputData(inputOffset + i) <= threshold) {
+                  inputData(inputOffset + i) = value
+                }
                 i += 1
               }
             })
@@ -102,12 +99,9 @@ class Threshold[@specialized(Float, Double) T: ClassTag](
             results(_t) = Engine.model.invoke(() => {
               var i = taskArray(_t)._1
               while (i < taskArray(_t)._2) {
-                inputData(inputOffset + i) =
-                  if (inputData(inputOffset + i) <= threshold) {
-                    valueFloat
-                  } else {
-                    inputData(inputOffset + i)
-                  }
+                if (inputData(inputOffset + i) <= threshold) {
+                  inputData(inputOffset + i) = valueFloat
+                }
                 i += 1
               }
             })
@@ -135,12 +129,9 @@ class Threshold[@specialized(Float, Double) T: ClassTag](
             results(_t) = Engine.model.invoke(() => {
               var i = taskArray(_t)._1
               while (i < taskArray(_t)._2) {
-                outputData(outputOffset + i) =
-                  if (inputData(inputOffset + i) > threshold) {
-                    inputData(inputOffset + i)
-                  } else {
-                    value
-                  }
+                if (outputData(outputOffset + i) <= threshold) {
+                  outputData(outputOffset + i) = value
+                }
                 i += 1
               }
             })
@@ -163,12 +154,9 @@ class Threshold[@specialized(Float, Double) T: ClassTag](
             results(_t) = Engine.model.invoke(() => {
               var i = taskArray(_t)._1
               while (i < taskArray(_t)._2) {
-                outputData(outputOffset + i) =
-                  if (inputData(inputOffset + i) > threshold) {
-                    inputData(inputOffset + i)
-                  } else {
-                    valueFloat
-                  }
+                if (outputData(outputOffset + i) <= threshold) {
+                  outputData(outputOffset + i) = valueFloat
+                }
                 i += 1
               }
             })
@@ -258,12 +246,9 @@ class Threshold[@specialized(Float, Double) T: ClassTag](
             results(_t) = Engine.model.invoke(() => {
               var i = taskArray(_t)._1
               while (i < taskArray(_t)._2) {
-                gradInputData(gradInputOffset + i) =
-                  if (inputData(inputOffset + i) <= threshold) {
-                    0.0
-                  } else {
-                    gradInputData(gradInputOffset + i)
-                  }
+                if (inputData(inputOffset + i) <= threshold) {
+                  gradInputData(gradInputOffset + i) = 0.0
+                }
                 i += 1
               }
             })
@@ -284,12 +269,9 @@ class Threshold[@specialized(Float, Double) T: ClassTag](
             results(_t) = Engine.model.invoke(() => {
               var i = taskArray(_t)._1
               while (i < taskArray(_t)._2) {
-                gradInputData(gradInputOffset + i) =
-                  if (inputData(inputOffset + i) <= threshold) {
-                    0.0f
-                  } else {
-                    gradInputData(gradInputOffset + i)
-                  }
+                if (inputData(inputOffset + i) <= threshold) {
+                  gradInputData(gradInputOffset + i) = 0.0f
+                }
                 i += 1
               }
             })
@@ -316,12 +298,9 @@ class Threshold[@specialized(Float, Double) T: ClassTag](
             results(_t) = Engine.model.invoke(() => {
               var i = taskArray(_t)._1
               while (i < taskArray(_t)._2) {
-                gradInputData(gradInputOffset + i) =
-                  if (inputData(inputOffset + i) <= threshold) {
-                    0.0
-                  } else {
-                    gradInputData(gradInputOffset + i)
-                  }
+                if (inputData(inputOffset + i) <= threshold) {
+                  gradInputData(gradInputOffset + i) = 0.0
+                }
                 i += 1
               }
             })
@@ -343,12 +322,9 @@ class Threshold[@specialized(Float, Double) T: ClassTag](
             results(_t) = Engine.model.invoke(() => {
               var i = taskArray(_t)._1
               while (i < taskArray(_t)._2) {
-                gradInputData(gradInputOffset + i) =
-                  if (inputData(inputOffset + i) <= threshold) {
-                    0.0f
-                  } else {
-                    gradInputData(gradInputOffset + i)
-                  }
+                if (inputData(inputOffset + i) <= threshold) {
+                  gradInputData(gradInputOffset + i) = 0.0f
+                }
                 i += 1
               }
             })
