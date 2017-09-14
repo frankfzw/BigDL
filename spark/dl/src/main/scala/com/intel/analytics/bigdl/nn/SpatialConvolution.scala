@@ -471,9 +471,14 @@ class SpatialConvolution[T: ClassTag](
       val gradView = gradWeightMMInBatch.view(batchSize,
         nOutputPlane * nInputPlane * kernelH * kernelW / nGroup).t
       val grad = gradWeight.view(nOutputPlane * nInputPlane * kernelH * kernelW / nGroup)
-      grad.addmv(ev.fromType(1.0), ev.fromType(1.0), gradView, onesBatch)
+      val beta = if (zeroGradFlag) {
+        ev.fromType(0.0)
+      } else {
+        ev.fromType(1.0)
+      }
+      grad.addmv(beta, ev.fromType(1.0), gradView, onesBatch)
       if (withBias) {
-        gradBias.addmv(ev.fromType(1.0), ev.fromType(1.0), gradientBiasMT.t, onesBatch)
+        gradBias.addmv(beta, ev.fromType(1.0), gradientBiasMT.t, onesBatch)
       }
     }
 
@@ -483,6 +488,7 @@ class SpatialConvolution[T: ClassTag](
     if (withBias && null != bRegularizer) {
       bRegularizer.accRegularization(bias, gradBias, scaleB)
     }
+    zeroGradFlag = false
   }
 
   override def updateParameters(learningRate: T): Unit = {
@@ -492,12 +498,6 @@ class SpatialConvolution[T: ClassTag](
     }
   }
 
-  override def zeroGradParameters(): Unit = {
-    gradWeight.zero()
-    if (withBias) {
-      gradBias.zero()
-    }
-  }
 
   override def parameters(): (Array[Tensor[T]], Array[Tensor[T]]) = {
     if (withBias) {
@@ -736,15 +736,24 @@ class SpatialConvolution[T: ClassTag](
         val sWDouble = ev.toType[Double](scaleW)
         val sBDouble = ev.toType[Double](scaleB)
         val gradBDouble = gradBias.asInstanceOf[Tensor[Double]]
+        val update = if (zeroGradFlag) {
+          (_: Double, y: Double) => y
+        } else {
+          (x: Double, y: Double) => x + y
+        }
         format match {
           case DataFormat.NCHW =>
             val outChannel = gradOutput.size(1)
             val outSize = gradOutput.size(2) * gradOutput.size(3)
             val gradOutput2d = gradODouble.view(Array(outChannel, outSize))
             if (sWDouble != 0) {
-              gradWDouble.addmm(1.0, gradWDouble, sWDouble, gradOutput2d, fIDouble.t)
+              if (zeroGradFlag) {
+                gradWDouble.addmm(0.0, gradWDouble, sWDouble, gradOutput2d, fIDouble.t)
+              } else {
+                gradWDouble.addmm(1.0, gradWDouble, sWDouble, gradOutput2d, fIDouble.t)
+              }
             }
-            if ( withBias && sBDouble != 0) {
+            if (withBias && sBDouble != 0) {
               var i = 0
               while (i < gradBias.size(1)) {
                 var sum = 0.0
@@ -755,7 +764,8 @@ class SpatialConvolution[T: ClassTag](
                   sum += data(k + offset)
                   k += 1
                 }
-                gradBDouble.setValue(i + 1, gradBDouble.valueAt(i + 1) + (sBDouble * sum))
+                gradBDouble.setValue(i + 1,
+                  update(gradBDouble.valueAt(i + 1), (sBDouble * sum)))
                 i += 1
               }
             }
@@ -765,10 +775,14 @@ class SpatialConvolution[T: ClassTag](
             val gradOutput2d = gradODouble.view(Array(outSize, outChannel))
 
             if (sWDouble != 0) {
-              gradWDouble.addmm(1.0, gradWDouble, sWDouble, fIDouble.t, gradOutput2d)
+              if (zeroGradFlag) {
+                gradWDouble.addmm(0.0, gradWDouble, sWDouble, fIDouble.t, gradOutput2d)
+              } else {
+                gradWDouble.addmm(1.0, gradWDouble, sWDouble, fIDouble.t, gradOutput2d)
+              }
             }
 
-            if (sBDouble != 0) {
+            if (withBias && sBDouble != 0) {
               var i = 0
               val gradData = gradOutput2d.storage().array()
               val biasData = gradBDouble.storage().array()
@@ -778,7 +792,13 @@ class SpatialConvolution[T: ClassTag](
                 val gradOffset = gradOutput2d.storageOffset() - 1 + i * gradOutput2d.stride(1)
                 var j = 0
                 while (j < gradOutput2d.size(2)) {
-                  biasData(biasOffset + j) += gradData(gradOffset + j)
+                  biasData(biasOffset + j) = update(biasData(biasOffset + j),
+                    gradData(gradOffset + j))
+                  if (zeroGradFlag) {
+                    biasData(biasOffset + j) = gradData(gradOffset + j)
+                  } else {
+                    biasData(biasOffset + j) += gradData(gradOffset + j)
+                  }
                   j = j + 1
                 }
                 i = i + 1
@@ -793,13 +813,22 @@ class SpatialConvolution[T: ClassTag](
         val sWFloat = ev.toType[Float](scaleW)
         val sBFloat = ev.toType[Float](scaleB)
         val gradBFloat = gradBias.asInstanceOf[Tensor[Float]]
+        val update = if (zeroGradFlag) {
+          (_: Float, y: Float) => y
+        } else {
+          (x: Float, y: Float) => x + y
+        }
         format match {
           case DataFormat.NCHW =>
             val outChannel = gradOutput.size(1)
             val outSize = gradOutput.size(2) * gradOutput.size(3)
             val gradOutput2d = gradOFloat.view(Array(outChannel, outSize))
             if (sWFloat != 0) {
-              gradWFloat.addmm(1.0f, gradWFloat, sWFloat, gradOutput2d, fIFloat.t)
+              if (zeroGradFlag) {
+                gradWFloat.addmm(0.0f, gradWFloat, sWFloat, gradOutput2d, fIFloat.t)
+              } else {
+                gradWFloat.addmm(1.0f, gradWFloat, sWFloat, gradOutput2d, fIFloat.t)
+              }
             }
 
             if (withBias && sBFloat != 0) {
@@ -813,7 +842,8 @@ class SpatialConvolution[T: ClassTag](
                   sum += data(k + offset)
                   k += 1
                 }
-                gradBFloat.setValue(i + 1, gradBFloat.valueAt(i + 1) + (sBFloat * sum))
+                gradBFloat.setValue(i + 1,
+                  update(gradBFloat.valueAt(i + 1), (sBFloat * sum)))
                 i += 1
               }
             }
@@ -823,10 +853,14 @@ class SpatialConvolution[T: ClassTag](
             val gradOutput2d = gradOFloat.view(Array(outSize, outChannel))
 
             if (sWFloat != 0) {
-              gradWFloat.addmm(1.0f, gradWFloat, sWFloat, fIFloat.t, gradOutput2d)
+              if (zeroGradFlag) {
+                gradWFloat.addmm(0.0f, gradWFloat, sWFloat, fIFloat.t, gradOutput2d)
+              } else {
+                gradWFloat.addmm(1.0f, gradWFloat, sWFloat, fIFloat.t, gradOutput2d)
+              }
             }
 
-            if (sBFloat != 0) {
+            if (withBias && sBFloat != 0) {
               var i = 0
               val gradData = gradOutput2d.storage().array()
               val biasData = gradBFloat.storage().array()
@@ -836,7 +870,8 @@ class SpatialConvolution[T: ClassTag](
                 val gradOffset = gradOutput2d.storageOffset() - 1 + i * gradOutput2d.stride(1)
                 var j = 0
                 while (j < gradOutput2d.size(2)) {
-                  biasData(biasOffset + j) += gradData(gradOffset + j)
+                  biasData(biasOffset + j) = update(biasData(biasOffset + j),
+                    gradData(gradOffset + j))
                   j = j + 1
                 }
                 i = i + 1
