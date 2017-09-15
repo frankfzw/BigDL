@@ -73,6 +73,7 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
   type absModule = AbstractModule[_ <: Activity, _ <: Activity, T]
 
   override def updateOutput(input: Activity): Activity = {
+    forwardArr = new Array[(Module[T], Long)](forwardExecutions.length)
     var i = 0
     while(i < forwardExecutions.length) {
       val node = forwardExecutions(i)
@@ -103,6 +104,7 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
     val before = System.nanoTime()
     dummyOutputGrad.element.gradInput = gradOutput
 
+    backwardArr = new Array[(Module[T], Long)](backwardExecutions.length)
     var i = 0
     while (i < backwardExecutions.length) {
       val curNode = backwardExecutions(i)
@@ -130,9 +132,9 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
       } else {
         curNode.element.accGradParameters(inputsBP.get(curNode.element.getName()), curGradOutput)
       }
-      i += 1
       val layerBackward = System.nanoTime() - before
       backwardArr(i) = (curNode.element, layerBackward)
+      i += 1
     }
 
     gradInput = if (inputs.length == 1) {
@@ -270,8 +272,8 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
 
   private val inputsBP = new util.HashMap[String, Activity]()
 
-  val forwardArr = new Array[(Module[T], Long)](executions.length)
-  val backwardArr = new Array[(Module[T], Long)](executions.length)
+  var forwardArr: Array[(Module[T], Long)] = null
+  var backwardArr: Array[(Module[T], Long)] = null
 
   // Check all inputs of the graph should be passed in
   checkRoots
