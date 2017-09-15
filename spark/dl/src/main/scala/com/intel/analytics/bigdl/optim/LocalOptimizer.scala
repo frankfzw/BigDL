@@ -202,7 +202,6 @@ class LocalOptimizer[T: ClassTag] private[optim](
         printTime(j, workingModels(j), -1, -1)
       }
 
->>>>>>> 4b43285... add forward/backward time print in Graph, Sequential and ConcatTable
       state("neval") = state[Int]("neval") + 1
 
       if (count >= numSamples) {
