@@ -16,6 +16,7 @@
 
 package com.intel.analytics.bigdl.nn
 
+import com.intel.analytics.bigdl.Module
 import com.intel.analytics.bigdl.nn.abstractnn.Activity
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
@@ -33,14 +34,22 @@ import scala.reflect.ClassTag
 @SerialVersionUID(- 704681653938468956L)
 class ConcatTable[T : ClassTag]
   (implicit ev: TensorNumeric[T]) extends Container[Activity, Table, T] {
+
+  var forwardArr: Array[(Module[T], Long)] = new Array[(Module[T], Long)](1)
+  var backwardArr: Array[(Module[T], Long)] = new Array[(Module[T], Long)](1)
+
   override def updateOutput(input: Activity): Table = {
+    forwardArr = new Array[(Module[T], Long)](modules.length)
     if (gradInput == null) {
       gradInput = allocateAs(input)
     }
     var i = 0
     while (i < modules.length) {
+      val before = System.nanoTime()
       val currentOutput = modules(i).forward(input)
       output.toTable(i + 1) = currentOutput
+      val layerForward = System.nanoTime() - before
+      forwardArr(i) = (modules(i), layerForward)
       i += 1
     }
     output
@@ -154,14 +163,18 @@ class ConcatTable[T : ClassTag]
   }
 
   override def backward(input: Activity, gradOutput: Table): Activity = {
+    backwardArr = new Array[(Module[T], Long)](modules.length)
     val isInputTable = input.isInstanceOf[Table]
     val wasGradInputTable = gradInput.isInstanceOf[Table]
 
     if (isInputTable) {
       var i = 0
       while (i < modules.length) {
+        val before = System.nanoTime()
         val currentGradInput = modules(i).backward(input,
           gradOutput.toTable(i + 1))
+        val layerBackward = System.nanoTime() - before
+        backwardArr(i) = (modules(i), layerBackward)
         require(currentGradInput.isInstanceOf[Table],
           "currentGradInput is not a table!")
         if (i == 0) {
@@ -181,8 +194,11 @@ class ConcatTable[T : ClassTag]
     } else {
       var i = 0
       while (i < modules.length) {
+        val before = System.nanoTime()
         val currentGradInput = modules(i).backward(input,
           gradOutput.toTable(i + 1)).toTensor[T]
+        val layerBackward = System.nanoTime() - before
+        backwardArr(i) = (modules(i), layerBackward)
         if (i == 0) {
           if (wasGradInputTable) {
             gradInput = currentGradInput.clone()

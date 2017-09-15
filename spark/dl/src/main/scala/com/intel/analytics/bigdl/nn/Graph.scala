@@ -18,6 +18,7 @@ package com.intel.analytics.bigdl.nn
 import java.util
 
 import scala.collection.JavaConverters._
+import com.intel.analytics.bigdl.Module
 import com.intel.analytics.bigdl.nn.Graph.ModuleNode
 import com.intel.analytics.bigdl.nn.abstractnn.{AbstractModule, Activity, TensorModule}
 import com.intel.analytics.bigdl.nn.tf.WithoutInput
@@ -82,8 +83,11 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
       } else {
         seqToTable(node.prevNodes.map(_.element.output))
       }
+      val before = System.nanoTime()
       node.element.forward(nodeInput)
       inputsBP.put(node.element.getName(), nodeInput)
+      val layerForward = System.nanoTime() - before
+      forwardArr(i) = (node.element, layerForward)
       i += 1
     }
 
@@ -120,12 +124,15 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
       })
 
       gradOutputBP(i) = curGradOutput
+      val before = System.nanoTime()
       if (!isStopGradient(curNode.element)) {
         curNode.element.backward(inputsBP.get(curNode.element.getName()), curGradOutput)
       } else {
         curNode.element.accGradParameters(inputsBP.get(curNode.element.getName()), curGradOutput)
       }
       i += 1
+      val layerBackward = System.nanoTime() - before
+      backwardArr(i) = (curNode.element, layerBackward)
     }
 
     gradInput = if (inputs.length == 1) {
@@ -262,6 +269,9 @@ class Graph[T: ClassTag](val inputs : Seq[ModuleNode[T]],
 
 
   private val inputsBP = new util.HashMap[String, Activity]()
+
+  val forwardArr = new Array[(Module[T], Long)](executions.length)
+  val backwardArr = new Array[(Module[T], Long)](executions.length)
 
   // Check all inputs of the graph should be passed in
   checkRoots

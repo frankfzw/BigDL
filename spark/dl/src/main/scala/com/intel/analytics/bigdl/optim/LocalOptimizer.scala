@@ -18,7 +18,7 @@ package com.intel.analytics.bigdl.optim
 
 import com.intel.analytics.bigdl.dataset.{LocalDataSet, MiniBatch}
 import com.intel.analytics.bigdl._
-import com.intel.analytics.bigdl.nn.Utils
+import com.intel.analytics.bigdl.nn.{ConcatTable, Graph, Sequential, Utils}
 import com.intel.analytics.bigdl.nn.abstractnn.Activity
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
@@ -108,8 +108,10 @@ class LocalOptimizer[T: ClassTag] private[optim](
       val lossSum = Engine.default.invokeAndWait(
         (0 until parallelism).map(i =>
           () => {
+            val ts = System.nanoTime()
             val localModel = workingModels(i)
             localModel.zeroGradParameters()
+            val zero = System.nanoTime()
             localModel.training()
             val localCriterion = workingCriterion(i)
             val input = miniBatchBuffer(i).getInput()
@@ -118,11 +120,16 @@ class LocalOptimizer[T: ClassTag] private[optim](
             val _loss = ev.toType[Double](localCriterion.forward(output, target))
             val errors = localCriterion.backward(output, target)
             localModel.backward(input, errors)
+            val d = (System.nanoTime() - ts) / 1e9
+            logger.info(s"Iteration ${state[Int]("neval")}: thread ${i} " +
+              s"zero time is ${(zero - ts) / 1e9} s, " +
+              s"run time is ${d} s")
             _loss
           })
       ).sum
 
       // copy multi-model gradient to the buffer
+      val copyStart = System.nanoTime()
       Engine.default.invokeAndWait(
         (0 until syncGradParallelNum).map(tid =>
           () => {
@@ -141,8 +148,10 @@ class LocalOptimizer[T: ClassTag] private[optim](
             }
           })
       )
+      val copyEnd = System.nanoTime()
       val loss = lossSum / parallelism
       grad.div(ev.fromType(parallelism))
+      val divTime = System.nanoTime()
 
       optimMethod.state.update("epoch", state.get("epoch"))
       optimMethod.state.update("neval", state.get("neval"))
@@ -150,14 +159,50 @@ class LocalOptimizer[T: ClassTag] private[optim](
       val end = System.nanoTime()
       wallClockTime += end - start
       count += batch.size()
-      val head = header(state[Int]("epoch"), count, numSamples, state[Int]("neval"), wallClockTime)
-      logger.info(s"$head " +
-        s"loss is $loss, iteration time is ${(end - start) / 1e9}s " +
-        s"data fetch time is ${(dataFetchTime - start) / 1e9}s, " +
-        s"train time ${(end - dataFetchTime) / 1e9}s. " +
-        s"Throughput is ${batch.size().toDouble / (end - start) * 1e9} record / second. " +
-        optimMethod.getHyperParameter()
-        )
+      val head =
+        header(state[Int]("epoch"), count, dataset.size(), state[Int]("neval"), wallClockTime)
+      logger.info(s"Iteration ${state[Int]("neval")}: " +
+        s"Throughput is ${batch.size().toDouble / (end - start) * 1e9} record / second, " +
+        s"data fetch time is ${(dataFetchTime - start) / 1e9} s, " +
+        s"run time is ${(copyStart - dataFetchTime) / 1e9} s, " +
+        s"copy time is ${(copyEnd - copyStart) / 1e9} s, " +
+        s"div time is ${(divTime - copyEnd) / 1e9} s, " +
+        s"update time is ${(end - divTime) / 1e9} s")
+      // logger.info(s"$head " +
+      //   s"loss is $loss, iteration time is ${(end - start) / 1e9} s " +
+      //   s"data fetch time is ${(dataFetchTime - start) / 1e9} s, " +
+      //   s"train time ${(end - dataFetchTime) / 1e9} s. " +
+      //   s"Throughput is ${batch.size().toDouble / (end - start) * 1e9} record / second. " +
+      //   optimMethod.getHyperParameter()
+      //   )
+      def printTime(idx: Int, m: Module[T], ftime: Float, btime: Float): Unit = {
+        if (m.isInstanceOf[Graph[T]]) {
+          val g = m.asInstanceOf[Graph[T]]
+          for (i <- 0 until g.forwardArr.length) {
+            printTime(idx, g.forwardArr(i)._1, g.forwardArr(i)._2, g.backwardArr(i)._2)
+          }
+        } else if (m.isInstanceOf[Sequential[T]]) {
+          val g = m.asInstanceOf[Sequential[T]]
+          for (i <- 0 until g.forwardArr.length) {
+            printTime(idx, g.forwardArr(i)._1, g.forwardArr(i)._2, g.backwardArr(i)._2)
+          }
+        } else if (m.isInstanceOf[ConcatTable[T]]) {
+          val g = m.asInstanceOf[ConcatTable[T]]
+          for (i <- 0 until g.forwardArr.length) {
+            printTime(idx, g.forwardArr(i)._1, g.forwardArr(i)._2, g.backwardArr(i)._2)
+          }
+        } else {
+          logger.info(s"Iteration ${state[Int]("neval")}: " +
+              s"model ${idx} Layer forward ${m.getName()} ${ftime}")
+          logger.info(s"Iteration ${state[Int]("neval")}: " +
+              s"model ${idx} Layer backward ${m.getName()} ${btime}")
+        }
+      }
+      for (j <- 0 until workingModels.length) {
+        printTime(j, workingModels(j), -1, -1)
+      }
+
+>>>>>>> 4b43285... add forward/backward time print in Graph, Sequential and ConcatTable
       state("neval") = state[Int]("neval") + 1
 
       if (count >= numSamples) {
